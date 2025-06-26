@@ -1,5 +1,5 @@
 # Streamlit To-Do App with Nested Subtasks and Drag-and-Drop Sorting
-
+pip install -r requirements.txt
 import streamlit as st
 from streamlit_sortables import sortables
 import json
