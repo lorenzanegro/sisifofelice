@@ -1,7 +1,6 @@
-# Streamlit To-Do App with Nested Subtasks and Drag-and-Drop Sorting
-pip install -r requirements.txt
+# Streamlit To-Do App with Nested Subtasks and Manual Ordering (Compatible with Streamlit Cloud)
+
 import streamlit as st
-from streamlit_sortables import sortables
 import json
 import os
 from datetime import date
@@ -32,8 +31,6 @@ def save_tasks(tasks):
 
 if "tasks" not in st.session_state:
     st.session_state.tasks = load_tasks()
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
 if "visible_count" not in st.session_state:
     st.session_state.visible_count = 5
 
@@ -50,18 +47,18 @@ def toggle_complete(task_id, subtask_id=None):
             break
     save_tasks(st.session_state.tasks)
 
-def reorder_tasks(new_titles):
-    id_map = {t["title"]: t for t in st.session_state.tasks}
-    st.session_state.tasks = [id_map[title] for title in new_titles if title in id_map]
+def reorder_tasks():
+    order = {}
+    for t in st.session_state.tasks:
+        order[t["id"]] = st.session_state.get(f"order_{t['id']}", 0)
+    st.session_state.tasks.sort(key=lambda t: order.get(t["id"], 0))
     save_tasks(st.session_state.tasks)
 
-def reorder_subtasks(task_id, new_titles):
-    for t in st.session_state.tasks:
-        if t["id"] == task_id:
-            id_map = {s["title"]: s for s in t["subtasks"]}
-            t["subtasks"] = [id_map[title] for title in new_titles if title in id_map]
-            break
-    save_tasks(st.session_state.tasks)
+def reorder_subtasks(task):
+    order = {}
+    for s in task["subtasks"]:
+        order[s["id"]] = st.session_state.get(f"order_sub_{s['id']}", 0)
+    task["subtasks"].sort(key=lambda s: order.get(s["id"], 0))
 
 def add_task():
     new_id = max([t["id"] for t in st.session_state.tasks] + [0]) + 1
@@ -88,13 +85,8 @@ st.title("📋 Streamlit To-Do List with Subtasks")
 if st.button("➕ Add Task"):
     add_task()
 
-# Drag-and-drop sorting of tasks
-task_titles = [t["title"] for t in st.session_state.tasks[:st.session_state.visible_count]]
-new_order = sortables(task_titles, direction="vertical", key="task_sort")
-if new_order != task_titles:
-    reorder_tasks(new_order)
-
-for t in st.session_state.tasks[:st.session_state.visible_count]:
+st.write("\n### Tasks")
+for i, t in enumerate(st.session_state.tasks[:st.session_state.visible_count]):
     col1, col2 = st.columns([0.05, 0.95])
     with col1:
         st.checkbox("", value=t["completed"], key=f"done_{t['id']}", on_change=toggle_complete, args=(t["id"],))
@@ -109,13 +101,10 @@ for t in st.session_state.tasks[:st.session_state.visible_count]:
         t["dueDate"] = new_due.isoformat()
         save_tasks(st.session_state.tasks)
 
-        st.markdown("**Subtasks:**")
-        sub_titles = [s["title"] for s in t["subtasks"]]
-        new_sub_order = sortables(sub_titles, direction="vertical", key=f"sub_{t['id']}")
-        if new_sub_order != sub_titles:
-            reorder_subtasks(t["id"], new_sub_order)
+        st.number_input("Order", min_value=0, max_value=100, value=i, key=f"order_{t['id']}", on_change=reorder_tasks)
 
-        for s in t["subtasks"]:
+        st.markdown("**Subtasks:**")
+        for j, s in enumerate(t["subtasks"]):
             scol1, scol2 = st.columns([0.1, 0.9])
             with scol1:
                 st.checkbox("", value=s["completed"], key=f"done_{s['id']}", on_change=toggle_complete, args=(t["id"], s["id"]))
@@ -124,6 +113,9 @@ for t in st.session_state.tasks[:st.session_state.visible_count]:
                 if new_subtitle != s["title"]:
                     s["title"] = new_subtitle
                     save_tasks(st.session_state.tasks)
+                st.number_input("Subtask Order", min_value=0, max_value=100, value=j, key=f"order_sub_{s['id']}")
+
+        reorder_subtasks(t)
 
         if st.button(f"➕ Add Subtask to '{t['title']}'", key=f"addsub_{t['id']}"):
             add_subtask(t["id"])
